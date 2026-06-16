@@ -23,6 +23,8 @@ import seaborn as sns
 import base64
 import io
 import time
+import json
+import os
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -60,77 +62,63 @@ def fig_to_base64(fig):
     return img_b64
 
 
+def load_stock_cache():
+    """Load pre-fetched stock data from JSON file."""
+    cache_path = os.path.join(os.path.dirname(__file__), "data", "stock_data.json")
+    if os.path.exists(cache_path):
+        with open(cache_path) as f:
+            data = json.load(f)
+        return data.get("stocks", {}), data.get("updated_at", "")
+    return {}, ""
+
+
 def fetch_data(portfolio):
-    info_data = {}
+    import pandas as pd
+    info_data  = {}
     price_data = {}
-    tickers_str = " ".join(portfolio.keys())
-    
-    # Batch fetch price history
-    try:
-        batch_hist = yf.download(tickers_str, period="1y", auto_adjust=True, progress=False)
-        if "Close" in batch_hist.columns:
-            for ticker in portfolio:
-                if ticker in batch_hist["Close"].columns:
-                    price_data[ticker] = batch_hist["Close"][ticker].dropna()
-        elif len(portfolio) == 1:
-            ticker = list(portfolio.keys())[0]
-            price_data[ticker] = batch_hist["Close"].dropna()
-    except Exception:
-        pass
+
+    # Try loading from cache first
+    cache, updated_at = load_stock_cache()
 
     for ticker in portfolio:
-        try:
-            t    = yf.Ticker(ticker)
-            info = t.fast_info
-            
-            name   = ticker
-            sector = "Other"
-            pe     = None
-            div    = 0
-            beta   = 1.0
-            mktcap = 0
-            
-            try:
-                full_info = t.info
-                name   = (full_info.get("shortName") or ticker).replace(" Inc.","").replace(" Inc","")
-                sector = full_info.get("sector") or "Other"
-                pe     = round(full_info.get("trailingPE"), 1) if full_info.get("trailingPE") and full_info.get("trailingPE") < 1000 else None
-                div    = round((full_info.get("trailingAnnualDividendYield") or full_info.get("dividendYield") or 0) * 100, 2)
-                beta   = round(full_info.get("beta"), 2) if full_info.get("beta") else 1.0
-                mktcap = full_info.get("marketCap") or 0
-            except Exception:
-                pass
-
-            try:
-                price = round(info.last_price or 0, 2)
-            except Exception:
-                price = 0
-
+        if ticker in cache:
+            s = cache[ticker]
             info_data[ticker] = {
-                "name":     name,
-                "sector":   sector,
-                "price":    price,
-                "pe_ratio": pe,
-                "div_yield":div,
-                "beta":     beta,
-                "mkt_cap":  mktcap,
+                "name":      s.get("name", ticker),
+                "sector":    s.get("sector", "Other"),
+                "price":     s.get("price", 0),
+                "pe_ratio":  s.get("pe_ratio"),
+                "div_yield": s.get("div_yield", 0),
+                "beta":      s.get("beta", 1.0),
+                "mkt_cap":   s.get("mkt_cap", 0),
             }
-            
-            if ticker not in price_data:
-                try:
-                    hist = t.history(period="1y")
-                    if not hist.empty:
-                        price_data[ticker] = hist["Close"]
-                except Exception:
-                    pass
+            closes = s.get("closes", [])
+            if closes:
+                price_data[ticker] = pd.Series(closes)
+        else:
+            # Fallback: try live fetch for tickers not in cache
+            try:
+                t    = yf.Ticker(ticker)
+                info = t.info
+                hist = t.history(period="1y")
+                info_data[ticker] = {
+                    "name":      (info.get("shortName") or ticker).replace(" Inc.","").replace(" Inc",""),
+                    "sector":    info.get("sector") or "Other",
+                    "price":     round(info.get("currentPrice") or info.get("regularMarketPrice") or 0, 2),
+                    "pe_ratio":  round(info.get("trailingPE"), 1) if info.get("trailingPE") and info.get("trailingPE") < 1000 else None,
+                    "div_yield": round((info.get("trailingAnnualDividendYield") or 0) * 100, 2),
+                    "beta":      round(info.get("beta"), 2) if info.get("beta") else 1.0,
+                    "mkt_cap":   info.get("marketCap") or 0,
+                }
+                if not hist.empty:
+                    price_data[ticker] = hist["Close"]
+                time.sleep(0.3)
+            except Exception:
+                info_data[ticker] = {
+                    "name": ticker, "sector": "Other", "price": 0,
+                    "pe_ratio": None, "div_yield": 0, "beta": 1.0, "mkt_cap": 0
+                }
 
-            time.sleep(0.3)
-
-        except Exception:
-            info_data[ticker] = {
-                "name": ticker, "sector": "Other", "price": 0,
-                "pe_ratio": None, "div_yield": 0, "beta": 1.0, "mkt_cap": 0
-            }
     return info_data, price_data
 
 
@@ -348,3 +336,4 @@ def analyse():
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+# test
