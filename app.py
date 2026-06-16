@@ -63,23 +63,69 @@ def fig_to_base64(fig):
 def fetch_data(portfolio):
     info_data = {}
     price_data = {}
+    tickers_str = " ".join(portfolio.keys())
+    
+    # Batch fetch price history
+    try:
+        batch_hist = yf.download(tickers_str, period="1y", auto_adjust=True, progress=False)
+        if "Close" in batch_hist.columns:
+            for ticker in portfolio:
+                if ticker in batch_hist["Close"].columns:
+                    price_data[ticker] = batch_hist["Close"][ticker].dropna()
+        elif len(portfolio) == 1:
+            ticker = list(portfolio.keys())[0]
+            price_data[ticker] = batch_hist["Close"].dropna()
+    except Exception:
+        pass
+
     for ticker in portfolio:
         try:
             t    = yf.Ticker(ticker)
-            info = t.info
-            hist = t.history(period="1y")
+            info = t.fast_info
+            
+            name   = ticker
+            sector = "Other"
+            pe     = None
+            div    = 0
+            beta   = 1.0
+            mktcap = 0
+            
+            try:
+                full_info = t.info
+                name   = (full_info.get("shortName") or ticker).replace(" Inc.","").replace(" Inc","")
+                sector = full_info.get("sector") or "Other"
+                pe     = round(full_info.get("trailingPE"), 1) if full_info.get("trailingPE") and full_info.get("trailingPE") < 1000 else None
+                div    = round((full_info.get("trailingAnnualDividendYield") or full_info.get("dividendYield") or 0) * 100, 2)
+                beta   = round(full_info.get("beta"), 2) if full_info.get("beta") else 1.0
+                mktcap = full_info.get("marketCap") or 0
+            except Exception:
+                pass
+
+            try:
+                price = round(info.last_price or 0, 2)
+            except Exception:
+                price = 0
+
             info_data[ticker] = {
-                "name":      (info.get("shortName") or ticker).replace(" Inc.","").replace(" Inc",""),
-                "sector":    info.get("sector") or "Other",
-                "price":     round(info.get("currentPrice") or info.get("regularMarketPrice") or 0, 2),
-                "pe_ratio":  round(info.get("trailingPE"), 1) if info.get("trailingPE") and info.get("trailingPE") < 1000 else None,
-                "div_yield": round((info.get("trailingAnnualDividendYield") or info.get("dividendYield") or 0) * 100, 2),
-                "beta":      round(info.get("beta"), 2) if info.get("beta") else 1.0,
-                "mkt_cap":   info.get("marketCap") or 0,
+                "name":     name,
+                "sector":   sector,
+                "price":    price,
+                "pe_ratio": pe,
+                "div_yield":div,
+                "beta":     beta,
+                "mkt_cap":  mktcap,
             }
-            if not hist.empty:
-                price_data[ticker] = hist["Close"]
-            time.sleep(0.2)
+            
+            if ticker not in price_data:
+                try:
+                    hist = t.history(period="1y")
+                    if not hist.empty:
+                        price_data[ticker] = hist["Close"]
+                except Exception:
+                    pass
+
+            time.sleep(0.3)
+
         except Exception:
             info_data[ticker] = {
                 "name": ticker, "sector": "Other", "price": 0,
