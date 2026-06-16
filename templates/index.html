@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portfolio Risk Analyser</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8f8f6;color:#1a1a1a;font-size:14px}
+.hdr{background:#fff;border-bottom:1px solid #e8e8e4;padding:1.25rem 2rem}
+.hdr h1{font-size:20px;font-weight:600}.hdr p{font-size:13px;color:#888;margin-top:4px}
+.container{max-width:800px;margin:2rem auto;padding:0 1.5rem}
+.card{background:#fff;border:1px solid #e8e8e4;border-radius:10px;padding:1.5rem;margin-bottom:1.5rem}
+.card h2{font-size:15px;font-weight:600;margin-bottom:1rem}
+.card p{font-size:13px;color:#666;margin-bottom:1rem;line-height:1.6}
+.holdings-list{display:flex;flex-direction:column;gap:8px;margin-bottom:1rem}
+.holding-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center}
+.holding-row input{font-size:13px;padding:8px 10px;border:1px solid #ddd;border-radius:6px;width:100%}
+.holding-row input:focus{outline:none;border-color:#185FA5}
+.holding-row button{background:none;border:none;color:#dc2626;cursor:pointer;font-size:18px;padding:4px 8px}
+.btn-add{background:none;border:1px dashed #ddd;border-radius:6px;padding:8px;width:100%;font-size:13px;color:#888;cursor:pointer;margin-bottom:1rem}
+.btn-add:hover{border-color:#185FA5;color:#185FA5}
+.btn-analyse{background:#185FA5;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:14px;font-weight:600;cursor:pointer;width:100%}
+.btn-analyse:hover{background:#0C447C}
+.btn-analyse:disabled{background:#aaa;cursor:not-allowed}
+.examples{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem}
+.example-btn{font-size:12px;padding:6px 12px;border:1px solid #ddd;border-radius:99px;background:#fff;cursor:pointer;color:#555}
+.example-btn:hover{border-color:#185FA5;color:#185FA5}
+.weight-total{font-size:12px;color:#888;margin-bottom:8px}
+.weight-total.ok{color:#2d6a04}.weight-total.err{color:#dc2626}
+.spinner{display:none;text-align:center;padding:2rem;color:#888;font-size:13px}
+.error-box{display:none;background:#fff5f5;border:1px solid #dc2626;border-radius:8px;padding:1rem;color:#dc2626;font-size:13px;margin-bottom:1rem}
+#results{display:none}
+.rating-box{border-radius:10px;padding:1.5rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:1.5rem}
+.metric{background:#fff;border:1px solid #e8e8e4;border-radius:8px;padding:.875rem}
+.metric .lbl{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.metric .val{font-size:20px;font-weight:600}.metric .sub{font-size:11px;color:#aaa;margin-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:1.5rem}
+.rcard{background:#fff;border:1px solid #e8e8e4;border-radius:8px;padding:1.25rem}
+.rcard h3{font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.875rem}
+.risk-list,.rec-list{list-style:none;padding:0}
+.risk-list li{padding:8px 12px;margin-bottom:6px;background:#fff5f5;border-left:3px solid #dc2626;border-radius:4px;font-size:13px;line-height:1.5}
+.rec-list li{padding:8px 12px;margin-bottom:6px;background:#f0fdf4;border-left:3px solid #2d6a04;border-radius:4px;font-size:13px;line-height:1.5}
+.no-risk{color:#2d6a04;font-size:13px;padding:8px 0}
+.img-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:1.5rem}
+.img-box{background:#fff;border:1px solid #e8e8e4;border-radius:8px;padding:1rem;text-align:center}
+.img-box img{width:100%;border-radius:4px}.img-box p{font-size:11px;color:#888;margin-top:6px}
+.sec-lbl{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.tw{border:1px solid #e8e8e4;border-radius:8px;overflow:hidden;background:#fff;margin-bottom:1.5rem}
+table{width:100%;border-collapse:collapse}
+thead{background:#f8f8f6}
+th{font-size:11px;font-weight:600;color:#888;padding:9px 12px;text-align:left;border-bottom:1px solid #e8e8e4;text-transform:uppercase}
+td{font-size:13px;padding:9px 12px;border-bottom:1px solid #f0f0ec}
+tr:last-child td{border-bottom:none}tr:hover td{background:#fafaf8}
+footer{text-align:center;padding:2rem;font-size:11px;color:#aaa}
+@media(max-width:600px){.metrics{grid-template-columns:repeat(2,1fr)}.grid2,.img-row{grid-template-columns:1fr}.holding-row{grid-template-columns:1fr 1fr auto}}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <h1>Portfolio Risk & Concentration Analyser</h1>
+  <p>Enter your stock holdings to get an instant risk report — sector exposure, volatility, correlation, and recommendations</p>
+</div>
+
+<div class="container">
+  <div class="card">
+    <h2>Your portfolio</h2>
+    <p>Enter each stock ticker and its portfolio weight (%). Weights should add up to 100%.</p>
+
+    <div class="examples">
+      <span style="font-size:12px;color:#888;padding:6px 0">Load example:</span>
+      <button class="example-btn" onclick="loadExample('tech')">Tech-heavy</button>
+      <button class="example-btn" onclick="loadExample('diversified')">Well diversified</button>
+      <button class="example-btn" onclick="loadExample('income')">Income focused</button>
+    </div>
+
+    <div class="holdings-list" id="holdings-list">
+      <div class="holding-row">
+        <input type="text" placeholder="Ticker (e.g. AAPL)" class="ticker-input" style="text-transform:uppercase">
+        <input type="number" placeholder="Weight %" class="weight-input" min="0.1" max="100" step="0.1" oninput="updateTotal()">
+        <button onclick="removeRow(this)">×</button>
+      </div>
+      <div class="holding-row">
+        <input type="text" placeholder="Ticker (e.g. MSFT)" class="ticker-input" style="text-transform:uppercase">
+        <input type="number" placeholder="Weight %" class="weight-input" min="0.1" max="100" step="0.1" oninput="updateTotal()">
+        <button onclick="removeRow(this)">×</button>
+      </div>
+      <div class="holding-row">
+        <input type="text" placeholder="Ticker (e.g. JPM)" class="ticker-input" style="text-transform:uppercase">
+        <input type="number" placeholder="Weight %" class="weight-input" min="0.1" max="100" step="0.1" oninput="updateTotal()">
+        <button onclick="removeRow(this)">×</button>
+      </div>
+    </div>
+
+    <button class="btn-add" onclick="addRow()">+ Add stock</button>
+    <div class="weight-total" id="weight-total">Total: 0%</div>
+    <div class="error-box" id="error-box"></div>
+    <button class="btn-analyse" id="analyse-btn" onclick="analyse()">Analyse portfolio</button>
+  </div>
+
+  <div class="spinner" id="spinner">
+    <div style="font-size:24px;margin-bottom:8px">⏳</div>
+    Fetching live market data — this takes about 30 seconds...
+  </div>
+
+  <div id="results">
+    <div class="rating-box" id="rating-box">
+      <div>
+        <div style="font-size:12px;color:#888;margin-bottom:4px">OVERALL RISK RATING</div>
+        <div style="font-size:28px;font-weight:700" id="rating-text"></div>
+        <div style="font-size:13px;color:#888;margin-top:4px" id="score-text"></div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:#888">PORTFOLIO SUMMARY</div>
+        <div style="font-size:13px;margin-top:4px" id="summary-text"></div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="lbl">Concentration</div><div class="val" id="m-score"></div><div class="sub">Higher = more risk</div></div>
+      <div class="metric"><div class="lbl">Volatility</div><div class="val" id="m-vol"></div><div class="sub">Annualised</div></div>
+      <div class="metric"><div class="lbl">Portfolio beta</div><div class="val" id="m-beta"></div><div class="sub">vs market = 1.0</div></div>
+      <div class="metric"><div class="lbl">Avg div yield</div><div class="val" id="m-div"></div><div class="sub">Weighted avg</div></div>
+      <div class="metric"><div class="lbl">Est. drawdown</div><div class="val" id="m-drawdown" style="color:#dc2626"></div><div class="sub">2022-style selloff</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="rcard">
+        <h3>Risk factors</h3>
+        <ul class="risk-list" id="risk-list"></ul>
+      </div>
+      <div class="rcard">
+        <h3>Recommendations</h3>
+        <ul class="rec-list" id="rec-list"></ul>
+      </div>
+    </div>
+
+    <div class="img-row">
+      <div class="img-box"><img id="sector-img" src="" alt="Sector exposure"><p>Sector exposure & holdings weight</p></div>
+      <div class="img-box"><img id="corr-img" src="" alt="Correlation"><p>Stock correlation matrix</p></div>
+    </div>
+
+    <div class="sec-lbl">Sector breakdown vs benchmark</div>
+    <div class="tw" style="margin-bottom:1.5rem">
+      <table><thead><tr><th>Sector</th><th>Your portfolio</th><th>Benchmark</th><th>Difference</th></tr></thead>
+      <tbody id="sector-tbody"></tbody></table>
+    </div>
+
+    <div class="sec-lbl">Holdings detail</div>
+    <div class="tw">
+      <table><thead><tr><th>Ticker</th><th>Company</th><th>Sector</th><th>Weight</th><th>Price</th><th>P/E</th><th>Div %</th><th>Beta</th></tr></thead>
+      <tbody id="holdings-tbody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<footer>Portfolio Risk Analyser · Built by Jumma Mohammad Teli · Data: Yahoo Finance</footer>
+
+<script>
+const EXAMPLES = {
+  tech: [
+    {ticker:"AAPL",weight:20},{ticker:"MSFT",weight:15},{ticker:"NVDA",weight:10},
+    {ticker:"GOOGL",weight:10},{ticker:"META",weight:8},{ticker:"JPM",weight:12},
+    {ticker:"JNJ",weight:10},{ticker:"KO",weight:8},{ticker:"XOM",weight:7}
+  ],
+  diversified: [
+    {ticker:"AAPL",weight:8},{ticker:"MSFT",weight:8},{ticker:"JPM",weight:8},
+    {ticker:"JNJ",weight:8},{ticker:"PG",weight:8},{ticker:"XOM",weight:8},
+    {ticker:"CAT",weight:8},{ticker:"NEE",weight:8},{ticker:"LIN",weight:8},
+    {ticker:"GOOGL",weight:8},{ticker:"WMT",weight:12},{ticker:"AMT",weight:8}
+  ],
+  income: [
+    {ticker:"KO",weight:15},{ticker:"JNJ",weight:15},{ticker:"PG",weight:15},
+    {ticker:"XOM",weight:10},{ticker:"JPM",weight:10},{ticker:"NEE",weight:10},
+    {ticker:"WMT",weight:10},{ticker:"IBM",weight:8},{ticker:"CVX",weight:7}
+  ]
+};
+
+function loadExample(type) {
+  const list = document.getElementById('holdings-list');
+  list.innerHTML = '';
+  EXAMPLES[type].forEach(h => {
+    const row = createRow();
+    row.querySelector('.ticker-input').value = h.ticker;
+    row.querySelector('.weight-input').value = h.weight;
+    list.appendChild(row);
+  });
+  updateTotal();
+}
+
+function createRow() {
+  const div = document.createElement('div');
+  div.className = 'holding-row';
+  div.innerHTML = `
+    <input type="text" placeholder="Ticker" class="ticker-input" style="text-transform:uppercase">
+    <input type="number" placeholder="Weight %" class="weight-input" min="0.1" max="100" step="0.1" oninput="updateTotal()">
+    <button onclick="removeRow(this)">×</button>`;
+  return div;
+}
+
+function addRow() {
+  document.getElementById('holdings-list').appendChild(createRow());
+}
+
+function removeRow(btn) {
+  const rows = document.querySelectorAll('.holding-row');
+  if (rows.length > 1) btn.parentElement.remove();
+  updateTotal();
+}
+
+function updateTotal() {
+  const weights = [...document.querySelectorAll('.weight-input')].map(i => parseFloat(i.value)||0);
+  const total   = weights.reduce((a,b)=>a+b,0);
+  const el      = document.getElementById('weight-total');
+  el.textContent = `Total: ${total.toFixed(1)}%`;
+  el.className   = `weight-total ${Math.abs(total-100)<1?'ok':'err'}`;
+}
+
+async function analyse() {
+  const errorBox = document.getElementById('error-box');
+  errorBox.style.display = 'none';
+
+  const holdings = [];
+  document.querySelectorAll('.holding-row').forEach(row => {
+    const ticker = row.querySelector('.ticker-input').value.trim().toUpperCase();
+    const weight = parseFloat(row.querySelector('.weight-input').value);
+    if (ticker && weight > 0) holdings.push({ticker, weight});
+  });
+
+  if (holdings.length < 2) {
+    errorBox.textContent = 'Please enter at least 2 stocks.';
+    errorBox.style.display = 'block';
+    return;
+  }
+
+  const total = holdings.reduce((a,h)=>a+h.weight,0);
+  if (Math.abs(total-100) > 5) {
+    errorBox.textContent = `Weights sum to ${total.toFixed(1)}% — please adjust to 100%.`;
+    errorBox.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('analyse-btn').disabled = true;
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+
+  try {
+    const resp = await fetch('/analyse', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({holdings})
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      errorBox.textContent = data.error;
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    // Rating box
+    const rb = document.getElementById('rating-box');
+    rb.style.border = `2px solid ${data.rating_color}`;
+    rb.style.background = '#fff';
+    document.getElementById('rating-text').textContent  = data.rating;
+    document.getElementById('rating-text').style.color  = data.rating_color;
+    document.getElementById('score-text').textContent   = `Concentration score: ${data.concentration_score}/100`;
+    document.getElementById('summary-text').innerHTML   = `${data.holdings.length} holdings · ${data.n_sectors} sectors<br>Largest position: ${data.max_single_holding}%`;
+
+    // Metrics
+    document.getElementById('m-score').textContent    = `${data.concentration_score}/100`;
+    document.getElementById('m-score').style.color    = data.rating_color;
+    document.getElementById('m-vol').textContent      = data.port_volatility ? `${data.port_volatility}%` : '—';
+    document.getElementById('m-beta').textContent     = data.port_beta;
+    document.getElementById('m-div').textContent      = `${data.port_div_yield}%`;
+    document.getElementById('m-drawdown').textContent = `${data.estimated_drawdown}%`;
+
+    // Risks
+    const rl = document.getElementById('risk-list');
+    rl.innerHTML = data.risks.length
+      ? data.risks.map(r=>`<li>${r}</li>`).join('')
+      : '<li class="no-risk">No major risk factors identified</li>';
+
+    // Recommendations
+    const recl = document.getElementById('rec-list');
+    recl.innerHTML = data.recommendations.length
+      ? data.recommendations.map(r=>`<li>${r}</li>`).join('')
+      : '<li class="no-risk">Portfolio is well diversified</li>';
+
+    // Charts
+    document.getElementById('sector-img').src = `data:image/png;base64,${data.sector_img}`;
+    if (data.corr_img) document.getElementById('corr-img').src = `data:image/png;base64,${data.corr_img}`;
+
+    // Sector table
+    document.getElementById('sector-tbody').innerHTML = data.sectors.map(s => {
+      const diffColor = s.diff > 10 ? '#dc2626' : s.diff > 0 ? '#d97706' : '#2d6a04';
+      return `<tr><td>${s.sector}</td><td>${s.pct}%</td><td>${s.bench}%</td><td style="color:${diffColor};font-weight:600">${s.diff>0?'+'+s.diff:s.diff}%</td></tr>`;
+    }).join('');
+
+    // Holdings table
+    document.getElementById('holdings-tbody').innerHTML = data.holdings.map(h =>
+      `<tr><td><strong>${h.ticker}</strong></td><td>${h.name}</td><td style="color:#888;font-size:11px">${h.sector}</td><td>${h.weight}%</td><td>$${h.price}</td><td>${h.pe_ratio||'—'}</td><td>${h.div_yield?h.div_yield+'%':'—'}</td><td>${h.beta}</td></tr>`
+    ).join('');
+
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('results').scrollIntoView({behavior:'smooth'});
+
+  } catch(e) {
+    errorBox.textContent = 'Request failed: ' + e.message;
+    errorBox.style.display = 'block';
+  } finally {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('analyse-btn').disabled = false;
+  }
+}
+</script>
+</body>
+</html>
